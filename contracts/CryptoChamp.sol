@@ -15,7 +15,7 @@ interface IUniswapV2Factory {
     ) external returns (address pair);
 }
 
-contract CryptoChamp is ERC20, Ownable, Pausable, ReentrancyGuard {
+contract CryptoChamps is ERC20, Ownable, Pausable, ReentrancyGuard {
     using ECDSA for bytes32;
 
     uint256 public buyTax = 5; // 5% buy tax
@@ -56,7 +56,7 @@ contract CryptoChamp is ERC20, Ownable, Pausable, ReentrancyGuard {
         address _uniswapRouter,
         address _admin,
         IWETHHolder _holder
-    ) ERC20("Champ", "$CH") Ownable(_msgSender()) {
+    ) ERC20("Champ", "CCG") Ownable(_msgSender()) {
         require(_uniswapRouter != address(0), "Invalid router address");
 
         isExcludedFromFees[_msgSender()] = true;
