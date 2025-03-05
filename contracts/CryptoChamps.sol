@@ -105,7 +105,7 @@ contract CryptoChamps is ERC20, Ownable, Pausable, ReentrancyGuard {
         address from,
         address to,
         uint256 amount
-    ) internal override whenNotPaused {
+    ) internal override transferAllowed {
         bool isLiquidityTransfer = (from == liquidityPool);
 
         if (isExcludedFromFees[from] || isExcludedFromFees[to]) {
