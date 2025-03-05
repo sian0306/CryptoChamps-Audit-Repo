@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity 0.8.20;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
@@ -46,6 +46,7 @@ contract CryptoChamps is ERC20, Ownable, Pausable, ReentrancyGuard {
     uint256 public totalReflectionsAccumulated;
 
     event LiquidityPoolCreated(address indexed liquidityPool);
+    event MinimumHoldingForReflectionUpdated(uint256 tokens);
     event TaxesUpdated(uint256 buyTax, uint256 sellTax);
     event TaxAllocationsUpdated(
         uint256 liquidityAllocation,
@@ -91,7 +92,9 @@ contract CryptoChamps is ERC20, Ownable, Pausable, ReentrancyGuard {
     function changeMinimumHoldingForReflection(
         uint256 _tokens
     ) external onlyOwner {
+        require(_tokens > 0, "Minimum token value must be higher than 0");
         minimumHoldingForReflection = _tokens;
+        emit MinimumHoldingForReflectionUpdated(_tokens);
     }
 
     function _createLiquidityPool() internal returns (address) {
