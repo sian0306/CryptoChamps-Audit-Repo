@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity 0.8.20;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
@@ -17,6 +17,13 @@ interface IUniswapV2Factory {
 
 contract CryptoChamps is ERC20, Ownable, Pausable, ReentrancyGuard {
     using ECDSA for bytes32;
+
+    uint256 public constant MAX_PAUSE_DURATION = 6 hours; // Maximum pause time
+    uint256 public constant PAUSE_COOLDOWN = 1 hours; // Minimum delay between pauses
+  
+    uint256 private pausedAt; // Timestamp when the contract was paused
+    uint256 private lastUnpausedAt; // Timestamp when the contract was last unpaused
+
 
     uint256 public buyTax = 5; // 5% buy tax
     uint256 public sellTax = 5; // 5% sell tax
@@ -39,6 +46,7 @@ contract CryptoChamps is ERC20, Ownable, Pausable, ReentrancyGuard {
     uint256 public totalReflectionsAccumulated;
 
     event LiquidityPoolCreated(address indexed liquidityPool);
+    event MinimumHoldingForReflectionUpdated(uint256 tokens);
     event TaxesUpdated(uint256 buyTax, uint256 sellTax);
     event TaxAllocationsUpdated(
         uint256 liquidityAllocation,
@@ -84,7 +92,9 @@ contract CryptoChamps is ERC20, Ownable, Pausable, ReentrancyGuard {
     function changeMinimumHoldingForReflection(
         uint256 _tokens
     ) external onlyOwner {
+        require(_tokens > 0, "Minimum token value must be higher than 0");
         minimumHoldingForReflection = _tokens;
+        emit MinimumHoldingForReflectionUpdated(_tokens);
     }
 
     function _createLiquidityPool() internal returns (address) {
@@ -98,7 +108,7 @@ contract CryptoChamps is ERC20, Ownable, Pausable, ReentrancyGuard {
         address from,
         address to,
         uint256 amount
-    ) internal override whenNotPaused {
+    ) internal override transferAllowed {
         bool isLiquidityTransfer = (from == liquidityPool);
 
         if (isExcludedFromFees[from] || isExcludedFromFees[to]) {
@@ -333,12 +343,34 @@ contract CryptoChamps is ERC20, Ownable, Pausable, ReentrancyGuard {
         emit TaxAllocationsUpdated(_liquidityAllocation, _reflectionAllocation);
     }
 
-    function pause() external onlyOwner {
-        _pause();
+    function pause() public onlyOwner {
+      require(!paused(), "Already paused");
+      require(
+          block.timestamp >= lastUnpausedAt + PAUSE_COOLDOWN,
+          "Cooldown active: Cannot pause again yet"
+      );
+
+      pausedAt = block.timestamp;
+      _pause();
+    } 
+
+    function unpause() public onlyOwner {
+        require(paused(), "Not paused");
+
+        _unpause();
+        lastUnpausedAt = block.timestamp;
     }
 
-    function unpause() external onlyOwner {
-        _unpause();
+    function isPauseExpired() public view returns (bool) {
+        return paused() && (block.timestamp >= pausedAt + MAX_PAUSE_DURATION);
+    }
+
+    modifier transferAllowed()  {
+        require(!paused() || isPauseExpired(), "Pausable: paused and time limit not reached");
+        if (isPauseExpired()) {
+            _unpause(); // Auto unpause if expired
+        }
+        _;
     }
 
     function excludeFromFees(
