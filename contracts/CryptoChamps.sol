@@ -18,6 +18,13 @@ interface IUniswapV2Factory {
 contract CryptoChamps is ERC20, Ownable, Pausable, ReentrancyGuard {
     using ECDSA for bytes32;
 
+    uint256 public constant MAX_PAUSE_DURATION = 6 hours; // Maximum pause time
+    uint256 public constant PAUSE_COOLDOWN = 1 hours; // Minimum delay between pauses
+  
+    uint256 private pausedAt; // Timestamp when the contract was paused
+    uint256 private lastUnpausedAt; // Timestamp when the contract was last unpaused
+
+
     uint256 public buyTax = 5; // 5% buy tax
     uint256 public sellTax = 5; // 5% sell tax
     uint256 public liquidityAllocation = 2; // 2% of tax to liquidity
@@ -333,12 +340,34 @@ contract CryptoChamps is ERC20, Ownable, Pausable, ReentrancyGuard {
         emit TaxAllocationsUpdated(_liquidityAllocation, _reflectionAllocation);
     }
 
-    function pause() external onlyOwner {
-        _pause();
+    function pause() public onlyOwner {
+      require(!paused(), "Already paused");
+      require(
+          block.timestamp >= lastUnpausedAt + PAUSE_COOLDOWN,
+          "Cooldown active: Cannot pause again yet"
+      );
+
+      pausedAt = block.timestamp;
+      _pause();
+    } 
+
+    function unpause() public onlyOwner {
+        require(paused(), "Not paused");
+
+        _unpause();
+        lastUnpausedAt = block.timestamp;
     }
 
-    function unpause() external onlyOwner {
-        _unpause();
+    function isPauseExpired() public view returns (bool) {
+        return paused() && (block.timestamp >= pausedAt + MAX_PAUSE_DURATION);
+    }
+
+    modifier transferAllowed()  {
+        require(!paused() || isPauseExpired(), "Pausable: paused and time limit not reached");
+        if (isPauseExpired()) {
+            _unpause(); // Auto unpause if expired
+        }
+        _;
     }
 
     function excludeFromFees(
